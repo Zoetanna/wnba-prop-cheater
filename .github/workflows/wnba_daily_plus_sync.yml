@@ -1,0 +1,73 @@
+name: WNBA Daily Props + Sheets Sync
+on:
+  schedule:
+    - cron: "15 13 * * *"   # ~9:15am ET daily
+  workflow_dispatch:
+
+jobs:
+  runner:
+    name: Run full-fat daily runner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install requests pandas matplotlib pillow gspread google-auth gspread_dataframe
+      - name: Run daily props generator
+        env:
+          SEASON: "2025"
+          SEASON_TYPE: "Regular Season"
+          LAST_N_GAMES: "6"
+          SEASON_SEGMENT: "Last 6 Games"
+          OUTPUT_DIR: "./out"
+          # If using Google Sheets for lines:
+          # SHEET_ID: "${{ secrets.SHEET_ID }}"
+          # GOOGLE_SERVICE_ACCOUNT_JSON: "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}"
+          # If using CSV for lines:
+          # LINES_CSV: "./data/lines.csv"
+          # Optional knobs:
+          # TEAMS_INCLUDE: "Las Vegas Aces,Atlanta Dream"
+          # PACE_FAST_THRESH: "1.05"
+          # PACE_SLOW_THRESH: "0.95"
+          # MIN_CONF_FOR_CARD: "+"
+          # MAKE_OVER_UNDER_CARDS: "1"
+          # MAX_PLAYS_PER_TEAM: "4"
+        run: python run_wnba_daily.py
+      - name: Upload runner outputs
+        uses: actions/upload-artifact@v4
+        with:
+          name: wnba-props-out
+          path: out/**
+
+  sync:
+    name: Sync runner outputs to Google Sheets
+    needs: runner
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.10"
+      - name: Install deps
+        run: |
+          python -m pip install --upgrade pip
+          pip install pandas gspread google-auth gspread_dataframe requests
+      - name: Download outputs
+        uses: actions/download-artifact@v4
+        with:
+          name: wnba-props-out
+          path: out_artifacts
+      - name: Sync to Sheets
+        env:
+          SHEET_ID: "${{ secrets.SHEET_ID }}"
+          GOOGLE_SERVICE_ACCOUNT_JSON: "${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}"
+          OUTPUT_DIR: "out_artifacts"
+          SHEET_TAB_FF: "four_factors_last6"
+          SHEET_TAB_OPP: "opponent_per100_last6"
+          SHEET_TAB_PACE: "pace_last6"
+          SHEET_TAB_SUGG: "suggestions"
+        run: python push_wnba_to_gsheets_v3.py
