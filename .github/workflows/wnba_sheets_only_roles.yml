@@ -1,0 +1,113 @@
+name: WNBA Sheets-only Props + Roles (Role-Aware Projections)
+'on':
+  schedule:
+    - cron: 22 13 * * *
+  workflow_dispatch: null
+jobs:
+  sheets_roles_props:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    env:
+      PYTHONPATH: '${{ github.workspace }}'
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          if [ -f requirements.txt ]; then
+            pip install -r requirements.txt
+          else
+            echo "requirements.txt missing; installing defaults"
+            pip install pandas numpy matplotlib pillow gspread google-auth gspread_dataframe scipy scikit-learn joblib
+          fi
+      - name: Load Google credentials (env only)
+        env:
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: |
+          python - <<'PY'
+          import os, json
+          raw = os.environ.get("GOOGLE_SERVICE_ACCOUNT_JSON","").strip()
+          assert raw, "GOOGLE_SERVICE_ACCOUNT_JSON is empty"
+          json.loads(raw)
+          print("OK: env JSON valid")
+          PY
+      - name: Create role_multipliers template if missing
+        run: |
+          if [ ! -f role_multipliers_template.csv ]; then
+            cat > role_multipliers_template.csv <<'CSV'
+            role_type,role_name,points,rebounds,assists,threes,steals,ftm
+            OFF,Shooter,0.05,0.00,0.00,0.15,0.00,0.00
+            OFF,Driver/Slasher,0.08,0.00,0.00,-0.05,0.00,0.12
+            OFF,Facilitator,-0.05,0.00,0.15,0.00,0.00,0.00
+            OFF,Primary Scorer,0.12,0.00,0.00,0.06,0.00,0.08
+            OFF,Combo Guard,0.04,0.00,0.08,0.08,0.00,0.00
+            OFF,Balanced Wing,0.02,0.02,0.02,0.00,0.00,0.00
+            DEF,Rim Protector,0.00,0.10,0.00,0.00,0.00,0.00
+            DEF,Boarding Big,0.00,0.12,0.00,0.00,0.00,0.00
+            DEF,Point of Attack,0.00,0.00,0.00,0.00,0.15,0.00
+            DEF,Team Defender,0.00,0.01,0.00,0.00,0.02,0.00
+            CSV
+            echo "Template created"
+          else
+            echo "Template already present"
+          fi
+      - name: Ensure role_multipliers tab (retry)
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          ROLE_MULT_TEMPLATE: role_multipliers_template.csv
+          SHEET_TAB_ROLE_MULT: role_multipliers
+          FORCE_ROLE_MULTIPLIERS: '0'
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+          GSHEET_RETRY_ATTEMPTS: '6'
+          GSHEET_RETRY_BASE: '2.0'
+        run: |
+          for i in 1 2 3; do
+            python ensure_role_multipliers_tab.py && break || {
+              echo "Attempt $i failed; sleeping $((10*i))s"; sleep $((10*i));
+            }
+          done
+      - name: Build context from Sheets
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: python sheets_only_runner.py
+      - name: Fit role models
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: python scripts/fit_roles.py
+      - name: Infer player roles today
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: python scripts/infer_roles_today.py
+      - name: Push roles to Sheet
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          SHEET_TAB_ROLES: player_roles_today
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: python push_roles_to_gsheets.py
+      - name: Run role-aware prop model
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          SHEET_TAB_ROLES: player_roles_today
+          SHEET_TAB_ROLE_MULT: role_multipliers
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: python props_model.py
+      - name: Push projections to Sheet
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          SHEET_TAB_PROJECTIONS: player_prop_projections
+          GOOGLE_SERVICE_ACCOUNT_JSON: '${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}'
+        run: python push_wnba_to_gsheets_v4.py
