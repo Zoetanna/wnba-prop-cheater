@@ -2,7 +2,7 @@ name: WNBA Sheets-only Props + Roles (Role-Aware Projections)
 
 on:
   schedule:
-    - cron: '22 13 * * *'  # ~9:22am ET (cron is UTC)
+    - cron: '22 13 * * *'  # ~9:22am ET (cron is UTC
   workflow_dispatch:
 
 jobs:
