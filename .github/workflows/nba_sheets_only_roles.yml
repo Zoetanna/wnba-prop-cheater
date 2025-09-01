@@ -1,0 +1,96 @@
+name: WNBA Sheets-only Props + Roles (Role-Aware Projections)
+'on':
+  schedule:
+    - cron: 22 13 * * *
+  workflow_dispatch: null
+jobs:
+  sheets_roles_props:
+    runs-on: ubuntu-latest
+    timeout-minutes: 35
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Setup Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install -r requirements.txt
+      - name: Materialize service account JSON
+        shell: bash
+        run: >
+          cat > sa.json <<'JSON'
+
+          ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
+
+          JSON
+
+          python - <<'PY'
+
+          import json
+
+          with open("sa.json","r") as f:
+              j=json.load(f)
+          assert "private_key" in j and j["private_key"].startswith("-----BEGIN
+          PRIVATE KEY-----"), "Bad SA JSON"
+
+          print("OK: SA JSON parsed")
+
+          PY
+
+          echo "GOOGLE_APPLICATION_CREDENTIALS=$GITHUB_WORKSPACE/sa.json" >>
+          $GITHUB_ENV
+
+          echo "GOOGLE_SERVICE_ACCOUNT_JSON<<EOF" >> $GITHUB_ENV
+
+          cat sa.json >> $GITHUB_ENV
+
+          echo "EOF" >> $GITHUB_ENV
+      - name: Ensure role_multipliers tab
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          ROLE_MULT_TEMPLATE: role_multipliers_template.csv
+          SHEET_TAB_ROLE_MULT: role_multipliers
+          FORCE_ROLE_MULTIPLIERS: '0'
+        run: python ensure_role_multipliers_tab.py
+      - name: Build context from Sheets
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+        run: python sheets_only_runner.py
+      - name: Fit role models
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+        run: python scripts/fit_roles.py
+      - name: Infer player roles today
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+        run: python scripts/infer_roles_today.py
+      - name: Push roles to Sheet
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          SHEET_TAB_ROLES: player_roles_today
+        run: python push_roles_to_gsheets.py
+      - name: Run role-aware prop model
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          SHEET_TAB_ROLES: player_roles_today
+          SHEET_TAB_ROLE_MULT: role_multipliers
+        run: python props_model.py
+      - name: Push projections to Sheet
+        env:
+          SHEET_ID: '${{ secrets.SHEET_ID }}'
+          OUTPUT_DIR: ./out
+          SHEET_TAB_PROJECTIONS: player_prop_projections
+        run: python push_wnba_to_gsheets_v4.py
+      - name: Upload artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: wnba-props-role-aware
+          path: out/**
