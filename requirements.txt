@@ -1,0 +1,10 @@
+pandas
+numpy
+matplotlib
+pillow
+gspread
+google-auth
+gspread_dataframe
+scipy
+scikit-learn
+joblib
