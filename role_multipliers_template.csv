@@ -1,0 +1,11 @@
+role_type,role_name,points,rebounds,assists,threes,steals,ftm
+OFF,Shooter,0.05,0.00,0.00,0.15,0.00,0.00
+OFF,Driver/Slasher,0.08,0.00,0.00,-0.05,0.00,0.12
+OFF,Facilitator,-0.05,0.00,0.15,0.00,0.00,0.00
+OFF,Primary Scorer,0.12,0.00,0.00,0.06,0.00,0.08
+OFF,Combo Guard,0.04,0.00,0.08,0.08,0.00,0.00
+OFF,Balanced Wing,0.02,0.02,0.02,0.00,0.00,0.00
+DEF,Rim Protector,0.00,0.10,0.00,0.00,0.00,0.00
+DEF,Boarding Big,0.00,0.12,0.00,0.00,0.00,0.00
+DEF,Point of Attack,0.00,0.00,0.00,0.00,0.15,0.00
+DEF,Team Defender,0.00,0.01,0.00,0.00,0.02,0.00
