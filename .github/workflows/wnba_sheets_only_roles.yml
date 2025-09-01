@@ -40,19 +40,24 @@ assert raw, 'GOOGLE_SERVICE_ACCOUNT_JSON is empty'; json.loads(raw); print('OK: 
 
       - name: Create role_multipliers template if missing
         run: |
-          python -c "import pathlib; p=pathlib.Path('role_multipliers_template.csv'); \
-import_text=('role_type,role_name,points,rebounds,assists,threes,steals,ftm\\n'
-'OFF,Shooter,0.05,0.00,0.00,0.15,0.00,0.00\\n'
-'OFF,Driver/Slasher,0.08,0.00,0.00,-0.05,0.00,0.12\\n'
-'OFF,Facilitator,-0.05,0.00,0.15,0.00,0.00,0.00\\n'
-'OFF,Primary Scorer,0.12,0.00,0.00,0.06,0.00,0.08\\n'
-'OFF,Combo Guard,0.04,0.00,0.08,0.08,0.00,0.00\\n'
-'OFF,Balanced Wing,0.02,0.02,0.02,0.00,0.00,0.00\\n'
-'DEF,Rim Protector,0.00,0.10,0.00,0.00,0.00,0.00\\n'
-'DEF,Boarding Big,0.00,0.12,0.00,0.00,0.00,0.00\\n'
-'DEF,Point of Attack,0.00,0.00,0.00,0.00,0.15,0.00\\n'
-'DEF,Team Defender,0.00,0.01,0.00,0.00,0.02,0.00\\n'); \
-print('Template already present' if p.exists() else (p.write_text(import_text), print('Template created')))"
+          if [ ! -f role_multipliers_template.csv ]; then
+            printf '%s\n' \
+              'role_type,role_name,points,rebounds,assists,threes,steals,ftm' \
+              'OFF,Shooter,0.05,0.00,0.00,0.15,0.00,0.00' \
+              'OFF,Driver/Slasher,0.08,0.00,0.00,-0.05,0.00,0.12' \
+              'OFF,Facilitator,-0.05,0.00,0.15,0.00,0.00,0.00' \
+              'OFF,Primary Scorer,0.12,0.00,0.00,0.06,0.00,0.08' \
+              'OFF,Combo Guard,0.04,0.00,0.08,0.08,0.00,0.00' \
+              'OFF,Balanced Wing,0.02,0.02,0.02,0.00,0.00,0.00' \
+              'DEF,Rim Protector,0.00,0.10,0.00,0.00,0.00,0.00' \
+              'DEF,Boarding Big,0.00,0.12,0.00,0.00,0.00,0.00' \
+              'DEF,Point of Attack,0.00,0.00,0.00,0.00,0.15,0.00' \
+              'DEF,Team Defender,0.00,0.01,0.00,0.00,0.02,0.00' \
+              > role_multipliers_template.csv
+            echo "Template created"
+          else
+            echo "Template already present"
+          fi
 
       - name: Ensure role_multipliers tab (retry)
         env:
@@ -79,11 +84,16 @@ print('Template already present' if p.exists() else (p.write_text(import_text), 
 
       - name: Create player_game_log template if missing
         run: |
-          python -c "import pathlib; p=pathlib.Path('player_game_log_template.csv'); \
-txt=('date,player,team,min,pts,reb,ast,stl,blk,tov,fga,fg3a,fta\\n'
-'2025-05-10,Sample Player,LV Aces,30,18,7,4,1,1,2,14,6,4\\n'
-'2025-05-12,Sample Player,LV Aces,28,21,6,5,0,0,3,15,7,5\\n'); \
-print('Template already present' if p.exists() else (p.write_text(txt), print('Template created')))"
+          if [ ! -f player_game_log_template.csv ]; then
+            printf '%s\n' \
+              'date,player,team,min,pts,reb,ast,stl,blk,tov,fga,fg3a,fta' \
+              '2025-05-10,Sample Player,LV Aces,30,18,7,4,1,1,2,14,6,4' \
+              '2025-05-12,Sample Player,LV Aces,28,21,6,5,0,0,3,15,7,5' \
+              > player_game_log_template.csv
+            echo "Template created"
+          else
+            echo "Template already present"
+          fi
 
       - name: Ensure player_game_log tab (retry)
         env:
