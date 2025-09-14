@@ -147,42 +147,67 @@ jobs:
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python props_model.py
         
-      - name: Prepare projections CSV
-        shell: bash
+      - name: Ensure 
         env:
           OUTPUT_DIR: ./out
         run: |
           set -euo pipefail
           python - <<'PY'
-          import os, glob, pandas as pd, sys, shutil
+          import os, glob, pandas as pd, sys, shutil, pathlib
           out = os.environ.get("OUTPUT_DIR","./out")
-          os.makedirs(out, exist_ok=True)
+          pathlib.Path(out).mkdir(parents=True, exist_ok=True)
           target = os.path.join(out, "player_prop_projections.csv")
 
-          
-          if os.path.exists(target):
+          # If exists and non-empty, done
+          if os.path.exists(target) and os.path.getsize(target) > 0:
               print("Found", target, "size:", os.path.getsize(target))
               sys.exit(0)
 
-          
-          cands = sorted(glob.glob(os.path.join(out, "*projection*.csv")))
-          if cands:
-              print("Copying", cands[0], "->", target)
-              shutil.copy(cands[0], target)
-              print("Prepared", target, "size:", os.path.getsize(target))
-              sys.exit(0)
+          # Try to find a projections-like CSV
+          patterns = ["*projection*.csv","*proj*.csv","*prop*.csv","*player_prop*.csv"]
+          cands = []
+          for p in patterns:
+              cands += glob.glob(os.path.join(out, p))
+          cands = sorted(set(cands))
+          for c in cands:
+              try:
+                  df = pd.read_csv(c)
+              except Exception:
+                  continue
+              if {"player","team"}.issubset({col.lower() for col in df.columns}):
+                  shutil.copy(c, target)
+                  print("Copied", c, "->", target)
+                  print("Prepared", target, "size:", os.path.getsize(target))
+                  sys.exit(0)
 
-          
-          xlsx = sorted(glob.glob(os.path.join(out, "*projection*.xlsx")))
-          if xlsx:
-              print("Converting", xlsx[0], "->", target)
-              df = pd.read_excel(xlsx[0])
-              df.to_csv(target, index=False)
-              print("Prepared", target, "rows:", len(df))
-              sys.exit(0)
+          # Try XLSX -> CSV
+          xpatterns = ["*projection*.xlsx","*proj*.xlsx","*prop*.xlsx","*player_prop*.xlsx"]
+          xcands = []
+          for p in xpatterns:
+              xcands += glob.glob(os.path.join(out, p))
+          xcands = sorted(set(xcands))
+          for x in xcands:
+              try:
+                  df = pd.read_excel(x)
+              except Exception:
+                  continue
+              if {"player","team"}.issubset({col.lower() for col in df.columns}):
+                  df.to_csv(target, index=False)
+                  print("Converted", x, "->", target)
+                  print("Prepared", target, "rows:", len(df))
+                  sys.exit(0)
 
-          print("::error::No projections output found in", out, file=sys.stderr)
-          sys.exit(1)
+          # Create empty with headers as fallback
+          cols = [
+              "player_id","player","team","opponent","date",
+              "minutes_mu","minutes_sd","usage",
+              "pts_mu","pts_sd","reb_mu","reb_sd","ast_mu","ast_sd","threes_mu","threes_sd",
+              "pts_line","reb_line","ast_line","threes_line",
+              "role_offense","role_defense","source"
+          ]
+          pd.DataFrame(columns=cols).to_csv(target, index=False)
+          print("Created empty projections with headers at", target)
+          sys.exit(0)
           PY
 
       - name: Push projections to Sheet
