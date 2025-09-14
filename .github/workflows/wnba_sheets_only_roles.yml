@@ -159,12 +159,12 @@ jobs:
           os.makedirs(out, exist_ok=True)
           target = os.path.join(out, "player_prop_projections.csv")
 
-          # If the exact file exists, we're done
+          
           if os.path.exists(target):
               print("Found", target, "size:", os.path.getsize(target))
               sys.exit(0)
 
-          # Try to find a likely CSV name from the model step
+          
           cands = sorted(glob.glob(os.path.join(out, "*projection*.csv")))
           if cands:
               print("Copying", cands[0], "->", target)
@@ -172,7 +172,7 @@ jobs:
               print("Prepared", target, "size:", os.path.getsize(target))
               sys.exit(0)
 
-          # Try converting an XLSX if that’s what was produced
+          
           xlsx = sorted(glob.glob(os.path.join(out, "*projection*.xlsx")))
           if xlsx:
               print("Converting", xlsx[0], "->", target)
