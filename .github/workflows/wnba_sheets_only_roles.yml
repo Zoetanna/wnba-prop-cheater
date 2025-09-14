@@ -146,7 +146,31 @@ jobs:
           SHEET_TAB_ROLE_MULT: role_multipliers
           GOOGLE_SERVICE_ACCOUNT_JSON: ${{ secrets.GOOGLE_SERVICE_ACCOUNT_JSON }}
         run: python props_model.py
+        
+      - name: Ensure projections CSV exists 
+         run:|
+          mkdir -p ./out
+          if [ ! -f ./out/player_prop_projections.csv ]; then
+            python - <<'PY'
+            import os, csv
+            os.makedirs('./out', exist_ok=True)
+            headers = [
+              'player','team','opponent','date',
+              'minutes_mu','minutes_sd','usage',
+              'pts_mu','pts_sd','reb_mu','reb_sd','ast_mu','ast_sd','threes_mu','threes_sd',
+              'pts_line','reb_line','ast_line','threes_line',
+              'model_version','generated_at'
+            ]
+            with open('./out/player_prop_projections.csv','w',newline='') as f:
+              csv.writer(f).writerow(headers)
+            print('Created empty ./out/player_prop_projections.csv')
+            PY
+          else
+            echo "Found ./out/player_prop_projections.csv"
+          fi
 
+      - name: List out directory (debug)
+        run: ls -lah ./out || true
       - name: Push projections to Sheet
         env:
           SHEET_ID: ${{ secrets.SHEET_ID }}
